@@ -37,7 +37,7 @@ body.dark-mode #footer {
     color: #f1f5f9 !important;
 }
 #header {
-    height: 43px;
+    min-height: 43px ! important;
     z-index: 1030;
     padding: 0px ! important;
     padding-left: 10px ! important;
