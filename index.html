@@ -96,7 +96,7 @@
         .iframe-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 20; }
         .ui-draggable-dragging .iframe-overlay, .ui-resizable-resizing .iframe-overlay { display: block !important; }
 
-        .expand-trigger { position: absolute; background: white; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); z-index: 50; display: none; transition: opacity 0.2s; cursor: pointer; }
+        .expand-trigger { position: absolute; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); z-index: 50; display: none; transition: opacity 0.2s; cursor: pointer; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900" id="app-body">
@@ -133,7 +133,7 @@
                 <div class="nav-input-group space-y-2">
                     <div class="flex gap-1">
                         <input type="text" id="external-url" placeholder="https://..." class="w-full text-xs p-2 rounded border">
-                        <button onclick="handleUrlSubmit()" class="p-2 bg-gray-200 rounded hover:bg-blue-500 hover:text-white">GO</button>
+                        <button onclick="handleUrlSubmit()" class="p-2 bg-red-300 rounded hover:bg-blue-500 hover:text-white">GO</button>
                     </div>
                     <button onclick="autoloadBookmarks()" class="w-full py-1.5 px-2 bg-gray-800 text-white text-[9px] font-bold uppercase rounded hover:bg-black transition-colors flex items-center justify-center gap-2">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
