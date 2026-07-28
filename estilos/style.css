@@ -26,9 +26,10 @@ header {
 }
 
 body.dark-mode #header {
-/*     background-color: black !important;*/
-    border-color: #1e293b !important;
+border-color: #2a4879 !important;
     color: #f1f5f9 !important;
+    border-left: none;
+    border-right: none;
 }
 body.dark-mode #footer {
     background-color: black !important;
