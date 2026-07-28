@@ -17,7 +17,7 @@ header {
   top: env(titlebar-area-y, 0);
   /* Use the environment variable for setting the width with a fallback. */
   width: env(titlebar-area-width, 100%);
-  /* Use the environment variable for setting the height with a fallback. */
+  /* Use the environment variable for setting the height with a fallback. */ 
   height: env(titlebar-area-height, 33px);
 }
 #nav-dynamic-content > div:nth-child(2) {
@@ -25,12 +25,16 @@ header {
     bottom: 0px;
 }
 
-body.dark-mode #header, body.dark-mode #footer {
+body.dark-mode #header {
+/*     background-color: black !important;*/
+    border-color: #1e293b !important;
+    color: #f1f5f9 !important;
+}
+body.dark-mode #footer {
     background-color: black !important;
     border-color: #1e293b !important;
     color: #f1f5f9 !important;
 }
-
 #header {
     height: 43px;
     z-index: 1030;
