@@ -1,24 +1,24 @@
 {
   "name": "PWAtemplate",
   "short_name": "PWA",
-  "id": "/PWA/index.html",
-  "start_url": "/PWA/index.html",
+  "id": "/PWA_aid/index.html",
+  "start_url": "/PWA_aid/index.html",
   "display": "standalone",
   "background_color": "#1e293b",
   "theme_color": "#1e293b",
   "icons": [
     {
-      "src": "/PWA/icons/Square44x44Logo.targetsize-44.png",
+      "src": "/PWA_aid/icons/Square44x44Logo.targetsize-44.png",
       "sizes": "44x44",
       "type": "image/png"
     },
        {
-      "src": "/PWA/icons/Wide310x150Logo.scale-150.png",
+      "src": "/PWA_aid/icons/Wide310x150Logo.scale-150.png",
       "sizes": "150x150",
       "type": "image/png"
     },
        {
-      "src": "/PWA/icons/Square44x44Logo.altform-lightunplated_targetsize-256.png",
+      "src": "/PWA_aid/icons/Square44x44Logo.altform-lightunplated_targetsize-256.png",
       "sizes": "256x256",
       "type": "image/png",
       "purpose": "any "
@@ -31,14 +31,14 @@
       "name": "Ver Inventario",
       "short_name": "Inventario",
       "description": "Acceso directo a la lista de productos",
-      "url": "/PWA/index0.html",
+      "url": "/PWA_aid/index0.html",
       "icons": [{ "src": "/PWA/icons/img2.png", "sizes": "28x28" }]
     },
     {
       "name": "Configuración",
       "short_name": "Ajustes",
       "description": "Preferencias de la aplicación",
-      "url": "/PWA/index0.html",
+      "url": "/PWA_aid/index0.html",
       "icons": [{ "src": "/PWA/icons/img2.png", "sizes": "28x28" }]
     }
   ]
