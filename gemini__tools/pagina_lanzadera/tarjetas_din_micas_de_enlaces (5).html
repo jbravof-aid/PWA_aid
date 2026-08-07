@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galeria de Tarjetas de Enlaces - Dexie IndexedDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Library Dexie.js for IndexedDB operations -->
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Subtle scrollbars */
+        main::-webkit-scrollbar, nav::-webkit-scrollbar, aside::-webkit-scrollbar {
+            width: 6px;
+        }
+        main::-webkit-scrollbar-track, nav::-webkit-scrollbar-track, aside::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        main::-webkit-scrollbar-thumb, nav::-webkit-scrollbar-thumb, aside::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.25);
+            border-radius: 9999px;
+        }
+        main::-webkit-scrollbar-thumb:hover, nav::-webkit-scrollbar-thumb:hover, aside::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+        main, nav, aside {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-screen overflow-hidden flex flex-col transition-colors duration-300">
+
+    <!-- Header / Navbar -->
+    <header class="flex-shrink-0 z-30 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
+                        <i class="fa-solid fa-database text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-brand-600 to-indigo-600 bg-clip-text text-transparent">
+                            LinkHub Directory
+                        </h1>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            IndexedDB (<code class="font-mono text-brand-600 dark:text-brand-400">link_cards</code> via Dexie.js)
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Acciones rápidas -->
+                <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <!-- Toggle Panels Always Visible -->
+                    <button onclick="toggleNavMobile()" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Mostrar/Ocultar Navegador NAV">
+                        <i class="fa-solid fa-folder-tree"></i>
+                    </button>
+                    <button onclick="toggleAsideMobile()" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Mostrar/Ocultar Editor ASIDE">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+
+                    <button id="themeToggleBtn" onclick="toggleDarkMode()" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Cambiar Tema">
+                        <i class="fa-solid fa-moon text-slate-600 dark:text-amber-400 dark:hidden"></i>
+                        <i class="fa-solid fa-sun text-amber-400 hidden dark:inline"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notificación Toast -->
+    <div id="toast" class="fixed bottom-24 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 dark:border-slate-300 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
+        <span id="toastMessage" class="text-xs sm:text-sm font-medium">Notificación</span>
+    </div>
+
+    <!-- Contenedor Central Dividido en NAV, MAIN y ASIDE -->
+    <div class="flex-1 flex overflow-hidden max-w-7xl w-full mx-auto">
+
+        <!-- NAV IZQUIERDA: Controles de Inspección de IndexedDB -->
+        <nav id="leftNav" class="w-72 flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border-r border-slate-200 dark:border-slate-700/80 overflow-y-auto p-4 flex flex-col gap-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-database text-brand-500"></i> IndexedDB Inspector
+                </span>
+                <span id="dbRecordBadge" class="bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    0 recs
+                </span>
+            </div>
+
+            <!-- Resumen DB Info -->
+            <div class="bg-slate-100/70 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/50 text-xs space-y-1.5">
+                <div class="flex justify-between">
+                    <span class="text-slate-500 dark:text-slate-400">Base de Datos:</span>
+                    <span class="font-mono font-bold text-slate-700 dark:text-slate-200">link_cards</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 dark:text-slate-400">Tabla principal:</span>
+                    <span class="font-mono font-semibold text-brand-600 dark:text-brand-400">cards</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 dark:text-slate-400">Motor Storage:</span>
+                    <span class="text-emerald-600 dark:text-emerald-400 font-semibold">Dexie JS</span>
+                </div>
+            </div>
+
+            <!-- Botones de Acción de la DB -->
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="reloadFromDB()" class="py-1.5 px-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-rotate text-brand-500"></i> Recargar
+                </button>
+                <button onclick="resetDefaultDB()" class="py-1.5 px-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-400 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Restablecer
+                </button>
+            </div>
+
+            <!-- Botones Importar / Exportar JSON en NAV -->
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 dark:border-slate-700/60">
+                <button onclick="triggerImport()" class="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1.5" title="Importar JSON a IndexedDB">
+                    <i class="fa-solid fa-file-import text-brand-600 dark:text-brand-400"></i> Importar
+                </button>
+                <input type="file" id="jsonFileInput" accept=".json" onchange="handleImportJSON(event)" class="hidden">
+
+                <button onclick="exportJSON()" class="py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-medium transition flex items-center justify-center gap-1.5 shadow-sm" title="Exportar datos a JSON">
+                    <i class="fa-solid fa-file-export"></i> Exportar
+                </button>
+            </div>
+
+            <!-- Buscador interno en NAV -->
+            <div class="relative">
+                <i class="fa-solid fa-filter absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input 
+                    type="text" 
+                    id="navSearchInput" 
+                    oninput="filterNavList()" 
+                    placeholder="Filtrar registros DB..." 
+                    class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-brand-500"
+                >
+            </div>
+
+            <!-- Lista de Registros IndexedDB para Inspeccionar / Editar -->
+            <div class="flex-1 flex flex-col gap-1 overflow-y-auto">
+                <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Registros en BD:</label>
+                <div id="navListContainer" class="space-y-1.5">
+                    <!-- Se llena dinámicamente con elementos de IndexedDB -->
+                </div>
+            </div>
+        </nav>
+
+        <!-- MAIN CENTRO: Galería de Tarjetas -->
+        <main class="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
+
+            <!-- Counter info -->
+            <div id="counterInfo" class="flex items-center justify-between mb-4">
+                <p id="counterInfoText" class="text-sm font-medium text-slate-500 dark:text-slate-400">
+                    Cargando tarjetas desde IndexedDB...
+                </p>
+                <div class="text-xs text-slate-400 flex items-center gap-1">
+                    <i class="fa-solid fa-info-circle"></i>
+                    <span>Clic en la tarjeta para abrir en vista previa</span>
+                </div>
+            </div>
+
+            <!-- Card Grid Container -->
+            <div id="cardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 pb-4">
+                <!-- Las tarjetas se inyectarán aquí dinámicamente desde Dexie -->
+            </div>
+
+            <!-- Visor Iframe Oculto (Navegación interna) -->
+            <div id="iframeViewer" class="hidden flex-col h-full min-h-[500px] bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden transition-all">
+                <!-- Toolbar superior del iframe -->
+                <div class="flex items-center justify-between px-4 py-3 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-xs gap-3 flex-wrap">
+                    <div class="flex items-center gap-2 overflow-hidden flex-1 min-w-[200px]">
+                        <button onclick="closeIframeViewer()" class="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-lg font-semibold transition flex items-center gap-1.5 flex-shrink-0">
+                            <i class="fa-solid fa-arrow-left"></i> Volver a Tarjetas
+                        </button>
+                        <span id="iframeTitle" class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openCurrentIframeNewTab()" class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>Abrir en nueva ventana</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Notificación de seguridad para sitios con X-Frame-Options -->
+                <div class="bg-amber-500/10 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 text-xs px-4 py-2 border-b border-amber-500/20 flex items-center justify-between gap-2 flex-wrap">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-600 dark:text-amber-400"></i>
+                        <span>Si la página aparece en blanco o no carga, el sitio rechaza mostrarse dentro de un iframe.</span>
+                    </span>
+                    <button onclick="openCurrentIframeNewTab()" class="underline font-bold text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 transition whitespace-nowrap">
+                        Abrir enlace fuera <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                </div>
+
+                <!-- Marco iFrame -->
+                <div class="flex-1 relative bg-slate-900 min-h-[400px]">
+                    <iframe id="previewIframe" class="w-full h-full border-0 rounded-b-2xl" title="Vista previa del enlace"></iframe>
+                </div>
+            </div>
+
+            <!-- State si no se encuentra nada -->
+            <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center">
+                <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mb-4 text-2xl">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">No hay datos en IndexedDB</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm">Intenta añadir registros o restablecer los datos de ejemplo.</p>
+            </div>
+
+        </main>
+
+        <!-- ASIDE DERECHA: Editor y Detalles del Registro Seleccionado -->
+        <aside id="rightAside" class="w-80 flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border-l border-slate-200 dark:border-slate-700/80 overflow-y-auto p-4 flex flex-col gap-4">
+            <!-- Botón Nueva Tarjeta en ASIDE (Top) -->
+            <button onclick="openModal()" class="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition text-xs sm:text-sm">
+                <i class="fa-solid fa-plus text-xs"></i>
+                <span>Nueva Tarjeta</span>
+            </button>
+
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-brand-500"></i> Editor IndexedDB
+                </span>
+                <span id="editingIdBadge" class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-mono px-2 py-0.5 rounded-full">
+                    ID: Ninguno
+                </span>
+            </div>
+
+            <div id="asideFormWrapper">
+                <div id="noSelectionMessage" class="py-12 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
+                    <i class="fa-solid fa-hand-pointer text-2xl text-slate-300 dark:text-slate-600 animate-bounce"></i>
+                    <span>Haz clic en un elemento del panel <b>NAV</b> para inspeccionar y editar sus datos en IndexedDB.</span>
+                </div>
+
+                <!-- Formulario de Edición Directa -->
+            <form id="asideEditForm" onsubmit="handleAsideFormSubmit(event)" class="hidden space-y-3">
+                <input type="hidden" id="asideId">
+                
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Título</label>
+                    <input type="text" id="asideTitle" required class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Categoría</label>
+                        <select id="asideCategory" required class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Insignia / Badge</label>
+                        <select id="asideBadge" class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none"></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">URL Enlace (href)</label>
+                    <input type="url" id="asideHref" required class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Seleccionar Imagen</label>
+                    <select id="asideImagen" required class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none"></select>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Texto Descripción</label>
+                    <textarea id="asideTexto" rows="3" required class="w-full px-2.5 py-1.5 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-brand-500 outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase mb-1">Etiquetas</label>
+                    <button type="button" onclick="openTagModal('aside')" class="w-full py-1.5 px-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-left text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between hover:border-brand-500 transition">
+                        <span id="asideTagsSummary" class="truncate font-medium text-brand-600 dark:text-brand-400">Sin etiquetas</span>
+                        <i class="fa-solid fa-tags text-slate-400 text-xs"></i>
+                    </button>
+                    <input type="hidden" id="asideTags">
+                </div>
+
+                <div class="pt-2 flex flex-col gap-2">
+                        <button type="submit" class="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-medium text-xs rounded-lg shadow transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios en DB
+                        </button>
+                        <button type="button" onclick="cloneSelectedRecord()" class="w-full py-1.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-copy"></i> Clonar Registro
+                        </button>
+                        <button type="button" onclick="deleteSelectedFromDB()" class="w-full py-1.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/50 dark:hover:bg-rose-900/70 text-rose-600 dark:text-rose-300 font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-trash-can"></i> Eliminar Registro
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </aside>
+
+    </div>
+
+    <!-- Footer con Controles de Búsqueda y Filtros -->
+    <footer class="flex-shrink-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-lg z-30 py-3 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto space-y-3">
+            <!-- Controles de Busqueda y Filtros -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <!-- Buscador -->
+                <div class="relative flex-1 max-w-md">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input 
+                        type="text" 
+                        id="searchInput"
+                        oninput="filterCards()"
+                        placeholder="Buscar en IndexedDB por título, descripción o etiqueta..." 
+                        class="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition shadow-inner text-xs sm:text-sm"
+                    >
+                </div>
+
+                <!-- Filtros de categoría -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none" id="categoryFilters">
+                    <!-- Se llena dinámicamente por JS -->
+                </div>
+            </div>
+
+            <!-- Credits / Legal -->
+            <div class="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                <span>LinkHub Directory con IndexedDB & Dexie.js</span>
+                <span>Controles de navegación e inspección DB habilitados</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modal para añadir nueva tarjeta -->
+    <div id="addCardModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 transform transition-all">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-700">
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-database text-brand-500"></i> Añadir Enlace a IndexedDB
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <form id="cardForm" onsubmit="handleFormSubmit(event)" class="mt-4 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Título</label>
+                    <input type="text" id="modalTitle" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Categoría</label>
+                        <select id="modalCategory" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Insignia / Badge</label>
+                        <select id="modalBadge" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">URL (href)</label>
+                    <input type="url" id="modalHref" required placeholder="https://ejemplo.com" class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Imagen</label>
+                    <select id="modalImagen" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Descripción / Texto</label>
+                    <textarea id="modalTexto" rows="3" required class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">Etiquetas</label>
+                    <button type="button" onclick="openTagModal('modal')" class="w-full py-2 px-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-left text-sm text-slate-700 dark:text-slate-300 flex items-center justify-between hover:border-brand-500 transition">
+                        <span id="modalTagsSummary" class="truncate font-medium text-brand-600 dark:text-brand-400">Sin etiquetas</span>
+                        <i class="fa-solid fa-tags text-slate-400 text-xs"></i>
+                    </button>
+                    <input type="hidden" id="modalTags">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow transition">Guardar Enlace</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Selección de Etiquetas -->
+    <div id="tagSelectionModal" class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-700 transform transition-all flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">
+                <h3 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-tags text-brand-500"></i> Seleccionar Etiquetas (BD)
+                </h3>
+                <button type="button" onclick="closeTagModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Añadir nueva etiqueta a la BD -->
+            <div class="pt-3 pb-2 flex gap-2 flex-shrink-0">
+                <input type="text" id="newTagNameInput" placeholder="Nueva etiqueta..." class="flex-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none focus:ring-1 focus:ring-brand-500">
+                <button type="button" onclick="addNewTagToDB()" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-medium transition flex items-center gap-1">
+                    <i class="fa-solid fa-plus text-[10px]"></i> Crear
+                </button>
+            </div>
+
+            <!-- Lista de Etiquetas con Checkboxes -->
+            <div id="tagCheckboxContainer" class="flex-1 overflow-y-auto my-2 py-1 space-y-1.5 pr-1">
+                <!-- Se inyecta dinámicamente -->
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700 flex-shrink-0">
+                <button type="button" onclick="closeTagModal()" class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition">Cancelar</button>
+                <button type="button" onclick="applyTagSelection()" class="px-4 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow transition">Aplicar Selección</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const defaultCategoriesData = [
+            { name: "Desarrollo" },
+            { name: "Diseño UI" },
+            { name: "Herramientas" },
+            { name: "Recursos" }
+        ];
+
+        const defaultBadgesData = [
+            { name: "Ninguna" },
+            { name: "Oficial" },
+            { name: "Popular" },
+            { name: "Esencial" },
+            { name: "Gratis" },
+            { name: "Tutorial" },
+            { name: "Inspiración" }
+        ];
+
+        const defaultTagsData = [
+            { name: "HTML" }, { name: "CSS" }, { name: "JS" }, { name: "Documentación" },
+            { name: "Frontend" }, { name: "UI" }, { name: "Git" }, { name: "Código" },
+            { name: "OpenSource" }, { name: "Fotografía" }, { name: "Recursos" }, { name: "Imágenes" },
+            { name: "JavaScript" }, { name: "ES6" }, { name: "Avanzado" }, { name: "UI/UX" },
+            { name: "Diseño" }, { name: "Arte" }
+        ];
+
+        const defaultImagesData = [
+            { title: "Código & Programación 1", url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=600&q=80" },
+            { title: "Diseño Web UI/UX", url: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=600&q=80" },
+            { title: "GitHub & Git Hub", url: "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?auto=format&fit=crop&w=600&q=80" },
+            { title: "Pantalla Desarrollo", url: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80" },
+            { title: "JavaScript Abstracto", url: "https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?auto=format&fit=crop&w=600&q=80" },
+            { title: "Diseño Creativo", url: "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=600&q=80" }
+        ];
+
+        // Array por defecto de tarjetas de ejemplo
+        const defaultLinksData = [
+            {
+                title: "MDN Web Docs",
+                category: "Desarrollo",
+                badge: "Oficial",
+                imagen: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=600&q=80",
+                texto: "Recursos completos y documentación oficial para desarrolladores web sobre HTML, CSS, JavaScript y APIs web.",
+                href: "https://developer.mozilla.org/",
+                autor: "Mozilla",
+                fecha: "2026",
+                tags: ["HTML", "CSS", "JS", "Documentación"]
+            },
+            {
+                title: "Tailwind CSS Framework",
+                category: "Diseño UI",
+                badge: "Popular",
+                imagen: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=600&q=80",
+                texto: "Un framework CSS utility-first cargado de clases listas para construir cualquier diseño directamente en tu HTML.",
+                href: "https://tailwindcss.com/",
+                autor: "Tailwind Labs",
+                fecha: "2026",
+                tags: ["CSS", "Frontend", "UI"]
+            },
+            {
+                title: "GitHub Platform",
+                category: "Herramientas",
+                badge: "Esencial",
+                imagen: "https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?auto=format&fit=crop&w=600&q=80",
+                texto: "Plataforma de desarrollo colaborativo para alojar y revisar código, gestionar proyectos y construir software.",
+                href: "https://github.com/",
+                autor: "Microsoft",
+                fecha: "2026",
+                tags: ["Git", "Código", "OpenSource"]
+            },
+            {
+                title: "Unsplash Photos",
+                category: "Recursos",
+                badge: "Gratis",
+                imagen: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80",
+                texto: "Hermosas fotos de alta resolución e imágenes gratuitas regaladas por la comunidad de fotógrafos más generosa del mundo.",
+                href: "https://unsplash.com/",
+                autor: "Comunidad",
+                fecha: "2026",
+                tags: ["Fotografía", "Recursos", "Imágenes"]
+            },
+            {
+                title: "JavaScript.info",
+                category: "Desarrollo",
+                badge: "Tutorial",
+                imagen: "https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?auto=format&fit=crop&w=600&q=80",
+                texto: "Desde lo básico hasta temas avanzados de JavaScript con explicaciones sencillas y detalladas.",
+                href: "https://javascript.info/",
+                autor: "Ilya Kantor",
+                fecha: "2026",
+                tags: ["JavaScript", "ES6", "Avanzado"]
+            },
+            {
+                title: "Dribbble Design",
+                category: "Diseño UI",
+                badge: "Inspiración",
+                imagen: "https://images.unsplash.com/photo-1561070791-2526d30994b5?auto=format&fit=crop&w=600&q=80",
+                texto: "Encuentra y conecta con los mejores diseñadores y talentos creativos de todo el mundo.",
+                href: "https://dribbble.com/",
+                autor: "Dribbble",
+                fecha: "2026",
+                tags: ["UI/UX", "Diseño", "Arte"]
+            }
+        ];
+
+        const db = new Dexie('link_cards');
+        db.version(2).stores({
+            cards: '++id, title, category, badge, href, autor, fecha',
+            categories: '++id, &name',
+            badges: '++id, &name',
+            tags: '++id, &name',
+            images: '++id, title, url'
+        });
+
+        let currentCardsData = [];
+        let categoriesData = [];
+        let badgesData = [];
+        let tagsData = [];
+        let imagesData = [];
+        let selectedCategory = "Todas";
+        let selectedRecordId = null;
+        let activeTagContext = null; // 'aside' o 'modal'
+        let selectedTagsState = { aside: [], modal: [] };
+
+        function triggerImport() {
+            document.getElementById('jsonFileInput').click();
+        }
+
+        function clearAsideForm() {
+            selectedRecordId = null;
+            document.getElementById('noSelectionMessage').classList.remove('hidden');
+            document.getElementById('asideEditForm').classList.add('hidden');
+            document.getElementById('editingIdBadge').textContent = 'ID: Ninguno';
+            document.getElementById('asideEditForm').reset();
+            selectedTagsState.aside = [];
+            updateTagsSummary('aside');
+            if (currentCardsData) renderNavList(currentCardsData);
+        }
+
+        function renderNavList(data) {
+            const container = document.getElementById('navListContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="text-[11px] text-slate-400 p-2 text-center">No hay registros</div>';
+                return;
+            }
+
+            data.forEach(item => {
+                const isSelected = item.id === selectedRecordId;
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-lg cursor-pointer transition border text-xs ${
+                    isSelected 
+                    ? 'bg-brand-50 border-brand-500 text-brand-700 dark:bg-brand-950/40 dark:border-brand-500 dark:text-brand-300 font-medium' 
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-200'
+                }`;
+                div.onclick = () => selectNavRecord(item);
+                div.innerHTML = `
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="font-semibold truncate flex-1">${item.title}</span>
+                        <span class="text-[9px] font-mono px-1.5 py-0.5 rounded ${isSelected ? 'bg-brand-200 text-brand-800 dark:bg-brand-800 dark:text-brand-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">#${item.id}</span>
+                    </div>
+                    <div class="flex items-center justify-between mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        <span class="truncate">${item.category}</span>
+                        <span>${item.badge || ''}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function filterNavList() {
+            const query = (document.getElementById('navSearchInput')?.value || '').toLowerCase().trim();
+            const filtered = currentCardsData.filter(item => 
+                (item.title && item.title.toLowerCase().includes(query)) ||
+                (item.category && item.category.toLowerCase().includes(query)) ||
+                (item.id && item.id.toString().includes(query))
+            );
+            renderNavList(filtered);
+        }
+
+        async function cloneSelectedRecord() {
+            if (!selectedRecordId) return;
+            const original = currentCardsData.find(c => c.id === selectedRecordId);
+            if (!original) return;
+
+            const cloned = { ...original };
+            delete cloned.id;
+            cloned.title = `${original.title} (Copia)`;
+
+            try {
+                const newId = await db.cards.add(cloned);
+                showToast(`Registro #${original.id} clonado como #${newId}`, "fa-copy");
+                await fetchAndRenderAll();
+                const newItem = currentCardsData.find(c => c.id === newId);
+                if (newItem) selectNavRecord(newItem);
+            } catch (err) {
+                console.error("Error al clonar registro:", err);
+                showToast("Error al clonar registro", "fa-circle-exclamation");
+            }
+        }
+
+        async function deleteSelectedFromDB() {
+            if (!selectedRecordId) return;
+            const idToDelete = selectedRecordId;
+            try {
+                await db.cards.delete(idToDelete);
+                showToast(`Registro #${idToDelete} eliminado`, "fa-trash-can");
+                clearAsideForm();
+                await fetchAndRenderAll();
+            } catch (err) {
+                console.error("Error al eliminar registro:", err);
+                showToast("Error al eliminar en IndexedDB", "fa-circle-exclamation");
+            }
+        }
+
+        /**
+         * Inicializa la base de datos IndexedDB si no existe y carga los datos de todas las tablas.
+         */
+        async function initDatabase() {
+            try {
+                await db.open();
+
+                // Sembrar tablas secundarias si están vacías
+                if (await db.categories.count() === 0) await db.categories.bulkAdd(defaultCategoriesData);
+                if (await db.badges.count() === 0) await db.badges.bulkAdd(defaultBadgesData);
+                if (await db.tags.count() === 0) await db.tags.bulkAdd(defaultTagsData);
+                if (await db.images.count() === 0) await db.images.bulkAdd(defaultImagesData);
+
+                const count = await db.cards.count();
+                if (count === 0) {
+                    await db.cards.bulkAdd(defaultLinksData);
+                    showToast("IndexedDB inicializada con todas las tablas", "fa-database");
+                }
+                await fetchAndRenderAll();
+            } catch (err) {
+                console.error("Error al inicializar IndexedDB:", err);
+                showToast("Error conectando a IndexedDB", "fa-triangle-exclamation");
+            }
+        }
+
+        async function loadLookupTables() {
+            categoriesData = await db.categories.toArray();
+            badgesData = await db.badges.toArray();
+            tagsData = await db.tags.toArray();
+            imagesData = await db.images.toArray();
+
+            populateSelects('asideCategory', categoriesData.map(c => c.name));
+            populateSelects('modalCategory', categoriesData.map(c => c.name));
+
+            populateSelects('asideBadge', badgesData.map(b => b.name));
+            populateSelects('modalBadge', badgesData.map(b => b.name));
+
+            populateImageSelects('asideImagen', imagesData);
+            populateImageSelects('modalImagen', imagesData);
+        }
+
+        function populateSelects(elementId, optionsArray) {
+            const select = document.getElementById(elementId);
+            if (!select) return;
+            const currentVal = select.value;
+            select.innerHTML = optionsArray.map(opt => `<option value="${opt}">${opt}</option>`).join('');
+            if (currentVal && optionsArray.includes(currentVal)) {
+                select.value = currentVal;
+            }
+        }
+
+        function populateImageSelects(elementId, imagesArray) {
+            const select = document.getElementById(elementId);
+            if (!select) return;
+            const currentVal = select.value;
+            select.innerHTML = imagesArray.map(img => `<option value="${img.url}">${img.title}</option>`).join('');
+            if (currentVal) {
+                select.value = currentVal;
+            }
+        }
+
+        /**
+         * Obtiene todos los registros desde IndexedDB y actualiza la UI.
+         */
+        async function fetchAndRenderAll() {
+            try {
+                await loadLookupTables();
+                currentCardsData = await db.cards.toArray();
+                
+                // Actualizar badge en NAV
+                document.getElementById('dbRecordBadge').textContent = `${currentCardsData.length} recs`;
+                
+                setupCategories();
+                renderNavList(currentCardsData);
+                filterCards();
+
+                // Si hay un registro seleccionado previamente, mantenerlo en el aside
+                if (selectedRecordId) {
+                    const item = currentCardsData.find(c => c.id === selectedRecordId);
+                    if (item) {
+                        selectNavRecord(item);
+                    } else {
+                        clearAsideForm();
+                    }
+                }
+            } catch (err) {
+                console.error("Error recuperando de IndexedDB:", err);
+            }
+        }
+
+        /**
+         * Restablece la BD a los datos por defecto en todas las tablas.
+         */
+        async function resetDefaultDB() {
+            try {
+                await db.cards.clear();
+                await db.categories.clear();
+                await db.badges.clear();
+                await db.tags.clear();
+                await db.images.clear();
+
+                await db.categories.bulkAdd(defaultCategoriesData);
+                await db.badges.bulkAdd(defaultBadgesData);
+                await db.tags.bulkAdd(defaultTagsData);
+                await db.images.bulkAdd(defaultImagesData);
+                await db.cards.bulkAdd(defaultLinksData);
+
+                selectedRecordId = null;
+                clearAsideForm();
+                await fetchAndRenderAll();
+                showToast("Todas las tablas de IndexedDB restablecidas", "fa-rotate-left");
+            } catch (err) {
+                console.error("Error al restablecer DB:", err);
+            }
+        }
+
+        /**
+         * Selecciona un elemento del NAV y rellena el panel ASIDE derecho con sus datos editables.
+         */
+        function selectNavRecord(item) {
+            selectedRecordId = item.id;
+            renderNavList(currentCardsData);
+
+            document.getElementById('noSelectionMessage').classList.add('hidden');
+            const form = document.getElementById('asideEditForm');
+            form.classList.remove('hidden');
+
+            document.getElementById('editingIdBadge').textContent = `ID: #${item.id}`;
+            document.getElementById('asideId').value = item.id;
+            document.getElementById('asideTitle').value = item.title || '';
+            document.getElementById('asideCategory').value = item.category || (categoriesData[0]?.name || '');
+            document.getElementById('asideBadge').value = item.badge || 'Ninguna';
+            document.getElementById('asideHref').value = item.href || '';
+            document.getElementById('asideImagen').value = item.imagen || (imagesData[0]?.url || '');
+            document.getElementById('asideTexto').value = item.texto || '';
+            
+            selectedTagsState.aside = item.tags ? [...item.tags] : [];
+            updateTagsSummary('aside');
+
+            // Abrir ASIDE si está oculto en móviles
+            const aside = document.getElementById('rightAside');
+            aside.classList.remove('hidden');
+        }
+
+        function openTagModal(context) {
+            activeTagContext = context;
+            const container = document.getElementById('tagCheckboxContainer');
+            container.innerHTML = '';
+
+            const currentSelected = selectedTagsState[context] || [];
+
+            tagsData.forEach(tag => {
+                const isChecked = currentSelected.includes(tag.name);
+                const label = document.createElement('label');
+                label.className = "flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 hover:border-brand-500 cursor-pointer text-xs select-none";
+                label.innerHTML = `
+                    <span class="font-medium text-slate-700 dark:text-slate-200">#${tag.name}</span>
+                    <input type="checkbox" value="${tag.name}" ${isChecked ? 'checked' : ''} class="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500">
+                `;
+                container.appendChild(label);
+            });
+
+            document.getElementById('tagSelectionModal').classList.remove('hidden');
+        }
+
+        function closeTagModal() {
+            document.getElementById('tagSelectionModal').classList.add('hidden');
+            document.getElementById('newTagNameInput').value = '';
+        }
+
+        async function addNewTagToDB() {
+            const input = document.getElementById('newTagNameInput');
+            const newTagName = input.value.trim();
+            if (!newTagName) return;
+
+            try {
+                await db.tags.put({ name: newTagName });
+                input.value = '';
+                tagsData = await db.tags.toArray();
+                showToast(`Etiqueta #${newTagName} añadida a BD`, "fa-tag");
+                openTagModal(activeTagContext);
+            } catch (err) {
+                console.error("Error añadiendo etiqueta:", err);
+            }
+        }
+
+        function applyTagSelection() {
+            const container = document.getElementById('tagCheckboxContainer');
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+            const selected = Array.from(checkboxes).map(cb => cb.value);
+
+            selectedTagsState[activeTagContext] = selected;
+            updateTagsSummary(activeTagContext);
+            closeTagModal();
+        }
+
+        function updateTagsSummary(context) {
+            const summaryEl = document.getElementById(`${context}TagsSummary`);
+            const hiddenEl = document.getElementById(`${context}Tags`);
+            const selected = selectedTagsState[context] || [];
+
+            hiddenEl.value = selected.join(',');
+            if (selected.length === 0) {
+                summaryEl.textContent = "Sin etiquetas";
+            } else {
+                summaryEl.textContent = selected.map(t => `#${t}`).join(', ');
+            }
+        }
+
+        /**
+         * Guarda los cambios editados en la ASIDE de vuelta a IndexedDB (Dexie).
+         */
+        async function handleAsideFormSubmit(e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('asideId').value, 10);
+            if (!id) return;
+
+            const badgeVal = document.getElementById('asideBadge').value;
+
+            const updatedCard = {
+                id: id,
+                title: document.getElementById('asideTitle').value,
+                category: document.getElementById('asideCategory').value,
+                badge: badgeVal === 'Ninguna' ? null : badgeVal,
+                href: document.getElementById('asideHref').value,
+                imagen: document.getElementById('asideImagen').value,
+                texto: document.getElementById('asideTexto').value,
+                autor: "Editor DB",
+                fecha: new Date().getFullYear().toString(),
+                tags: selectedTagsState.aside
+            };
+
+            try {
+                await db.cards.put(updatedCard);
+                showToast(`Registro #${id} actualizado en IndexedDB`, "fa-floppy-disk");
+                await fetchAndRenderAll();
+            } catch (err) {
+                console.error("Error actualizando registro en Dexie:", err);
+                showToast("Error al guardar en IndexedDB", "fa-circle-exclamation");
+            }
+        }
+
+        function openModal() {
+            selectedTagsState.modal = [];
+            updateTagsSummary('modal');
+            document.getElementById('addCardModal').classList.remove('hidden');
+        }
+
+        /**
+         * Guarda una nueva tarjeta creada desde el Modal en IndexedDB.
+         */
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const badgeVal = document.getElementById('modalBadge').value;
+
+            const newCard = {
+                title: document.getElementById('modalTitle').value,
+                category: document.getElementById('modalCategory').value,
+                badge: badgeVal === 'Ninguna' ? null : badgeVal,
+                href: document.getElementById('modalHref').value,
+                imagen: document.getElementById('modalImagen').value,
+                texto: document.getElementById('modalTexto').value,
+                autor: "Usuario BD",
+                fecha: new Date().getFullYear().toString(),
+                tags: selectedTagsState.modal
+            };
+
+            try {
+                const generatedId = await db.cards.add(newCard);
+                closeModal();
+                await fetchAndRenderAll();
+                showToast(`Nueva tarjeta guardada en IndexedDB (#${generatedId})`);
+            } catch (err) {
+                console.error("Error al insertar en Dexie:", err);
+                showToast("Error guardando en IndexedDB", "fa-circle-exclamation");
+            }
+        }
+
+        /**
+         * Exporta los datos almacenados en todas las tablas de IndexedDB a un archivo JSON.
+         */
+        async function exportJSON() {
+            try {
+                const exportData = {
+                    cards: await db.cards.toArray(),
+                    categories: await db.categories.toArray(),
+                    badges: await db.badges.toArray(),
+                    tags: await db.tags.toArray(),
+                    images: await db.images.toArray()
+                };
+                const jsonStr = JSON.stringify(exportData, null, 2);
+                const blob = new Blob([jsonStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `indexeddb_full_export_${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                showToast("Todas las tablas exportadas a JSON");
+            } catch (err) {
+                console.error("Error al exportar:", err);
+                showToast("Error al exportar JSON", "fa-circle-exclamation");
+            }
+        }
+
+        /**
+         * Reemplaza o añade el contenido del JSON importado en IndexedDB.
+         */
+        function handleImportJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    if (importedData.cards && Array.isArray(importedData.cards)) {
+                        await db.cards.clear();
+                        await db.cards.bulkAdd(importedData.cards.map(({ id, ...rest }) => rest));
+
+                        if (importedData.categories) {
+                            await db.categories.clear();
+                            await db.categories.bulkAdd(importedData.categories.map(({ id, ...rest }) => rest));
+                        }
+                        if (importedData.badges) {
+                            await db.badges.clear();
+                            await db.badges.bulkAdd(importedData.badges.map(({ id, ...rest }) => rest));
+                        }
+                        if (importedData.tags) {
+                            await db.tags.clear();
+                            await db.tags.bulkAdd(importedData.tags.map(({ id, ...rest }) => rest));
+                        }
+                        if (importedData.images) {
+                            await db.images.clear();
+                            await db.images.bulkAdd(importedData.images.map(({ id, ...rest }) => rest));
+                        }
+                    } else if (Array.isArray(importedData)) {
+                        await db.cards.clear();
+                        await db.cards.bulkAdd(importedData.map(({ id, ...rest }) => rest));
+                    }
+
+                    selectedRecordId = null;
+                    clearAsideForm();
+                    await fetchAndRenderAll();
+                    showToast("Base de datos importada correctamente", "fa-file-circle-check");
+                } catch (err) {
+                    console.error("Error al importar JSON:", err);
+                    showToast("Error al procesar el archivo JSON", "fa-circle-exclamation");
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function showToast(message, iconClass = "fa-circle-check") {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+            toastIcon.className = `fa-solid ${iconClass} text-emerald-400 dark:text-emerald-500`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        let currentIframeUrl = "";
+
+        /**
+         * Muestra la página web dentro del visor iframe en la sección MAIN.
+         */
+        function navigateTo(url, title = "Vista Previa") {
+            openIframeViewer(url, title);
+        }
+
+        function openIframeViewer(url, title) {
+            currentIframeUrl = url;
+            const cardsContainer = document.getElementById('cardsContainer');
+            const counterInfo = document.getElementById('counterInfo');
+            const emptyState = document.getElementById('emptyState');
+            const iframeViewer = document.getElementById('iframeViewer');
+            const previewIframe = document.getElementById('previewIframe');
+            const iframeTitle = document.getElementById('iframeTitle');
+
+            if (cardsContainer) cardsContainer.classList.add('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (counterInfo) counterInfo.classList.add('hidden');
+
+            iframeViewer.classList.remove('hidden');
+            iframeViewer.classList.add('flex');
+
+            iframeTitle.textContent = title || url;
+            previewIframe.src = url;
+
+            showToast(`Cargando vista en iframe...`, "fa-window-maximize");
+        }
+
+        /**
+         * Cierra la vista del iframe y restaura el grid de tarjetas.
+         */
+        function closeIframeViewer() {
+            const cardsContainer = document.getElementById('cardsContainer');
+            const counterInfo = document.getElementById('counterInfo');
+            const iframeViewer = document.getElementById('iframeViewer');
+            const previewIframe = document.getElementById('previewIframe');
+
+            if (previewIframe) previewIframe.src = "about:blank";
+            if (iframeViewer) {
+                iframeViewer.classList.add('hidden');
+                iframeViewer.classList.remove('flex');
+            }
+
+            if (cardsContainer) cardsContainer.classList.remove('hidden');
+            if (counterInfo) counterInfo.classList.remove('hidden');
+        }
+
+        function openCurrentIframeNewTab() {
+            if (currentIframeUrl) {
+                openInNewTab(currentIframeUrl);
+            }
+        }
+
+        function openInNewTab(url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+
+        /**
+         * Renderiza las tarjetas en el MAIN.
+         */
+        function renderCards(data) {
+            const container = document.getElementById('cardsContainer');
+            const emptyState = document.getElementById('emptyState');
+            const counterInfoText = document.getElementById('counterInfoText');
+
+            container.innerHTML = '';
+
+            if (data.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                if (counterInfoText) counterInfoText.textContent = '0 enlaces en la selección actual';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+            if (counterInfoText) counterInfoText.textContent = `Mostrando ${data.length} de ${currentCardsData.length} enlaces desde IndexedDB`;
+
+            data.forEach(item => {
+                const card = document.createElement('article');
+                card.className = "card-hover bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/80 flex flex-col justify-between cursor-pointer group shadow-sm hover:border-brand-500/50 dark:hover:border-brand-500/50 transition-all";
+                
+                const escapedTitle = (item.title || '').replace(/'/g, "\\'");
+
+                card.onclick = (e) => {
+                    if (!e.target.closest('button') && !e.target.closest('a')) {
+                        navigateTo(item.href, item.title);
+                    }
+                };
+
+                const tagsHTML = item.tags ? item.tags.map(tag => 
+                    `<span class="text-[10px] font-medium bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md">#${tag}</span>`
+                ).join(' ') : '';
+
+                card.innerHTML = `
+                    <!-- HEADER DE LA TARJETA -->
+                    <header class="relative overflow-hidden aspect-video bg-slate-100 dark:bg-slate-900">
+                        <img 
+                            src="${item.imagen}" 
+                            alt="${item.title}" 
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onerror="this.onerror=null; this.src='https://placehold.co/600x400/1e293b/ffffff?text=Imagen+no+disponible';"
+                        >
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+                        
+                        <div class="absolute top-3 left-3 flex gap-2 flex-wrap">
+                            <span class="bg-brand-600/90 text-white text-xs font-semibold px-2.5 py-1 rounded-lg backdrop-blur-md shadow-sm">
+                                ${item.category}
+                            </span>
+                            ${item.badge ? `
+                                <span class="bg-amber-500/90 text-white text-xs font-semibold px-2 py-1 rounded-lg backdrop-blur-md shadow-sm">
+                                    ${item.badge}
+                                </span>
+                            ` : ''}
+                        </div>
+
+                        <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <button 
+                                type="button"
+                                onclick="event.stopPropagation(); openInNewTab('${item.href}')" 
+                                title="Abrir en nueva ventana"
+                                class="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-md hover:bg-brand-600 hover:text-white dark:hover:bg-brand-600 dark:hover:text-white transition-colors"
+                            >
+                                <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+                            </button>
+                        </div>
+                    </header>
+
+                    <!-- BODY DE LA TARJETA -->
+                    <section class="p-5 flex-grow flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between gap-2 mb-1">
+                                <h2 class="text-base font-bold text-slate-800 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors line-clamp-1">
+                                    ${item.title}
+                                </h2>
+                                <span class="text-[10px] font-mono text-slate-400">#${item.id}</span>
+                            </div>
+                            <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-3 leading-relaxed mb-4">
+                                ${item.texto}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-wrap gap-1.5 mt-2">
+                            ${tagsHTML}
+                        </div>
+                    </section>
+
+                    <!-- FOOTER DE LA TARJETA -->
+                    <footer class="px-4 py-3 bg-slate-50/80 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <div class="flex items-center gap-1.5 overflow-hidden">
+                            <i class="fa-regular fa-user text-slate-400 text-xs"></i>
+                            <span class="truncate font-medium text-xs">${item.autor || 'Desconocido'}</span>
+                        </div>
+                        
+                        <button 
+                            type="button"
+                            onclick="event.stopPropagation(); navigateTo('${item.href}', '${escapedTitle}')" 
+                            class="flex items-center gap-1.5 text-brand-600 dark:text-brand-400 font-semibold hover:underline group-hover:translate-x-0.5 transition-transform text-xs"
+                        >
+                            <span>Ir al enlace</span>
+                            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        </button>
+                    </footer>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        /**
+         * Configura los filtros de categorías.
+         */
+        function setupCategories() {
+            const categories = ["Todas", ...new Set(currentCardsData.map(item => item.category))];
+            const filterContainer = document.getElementById('categoryFilters');
+            
+            filterContainer.innerHTML = categories.map(cat => `
+                <button 
+                    onclick="selectCategory('${cat}')"
+                    class="category-btn px-3.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                        cat === selectedCategory 
+                        ? 'bg-brand-600 text-white shadow-sm' 
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    }"
+                >
+                    ${cat}
+                </button>
+            `).join('');
+        }
+
+        function selectCategory(cat) {
+            closeIframeViewer();
+            selectedCategory = cat;
+            setupCategories();
+            filterCards();
+        }
+
+        /**
+         * Filtra tarjetas según categoría y texto de búsqueda.
+         */
+        function filterCards() {
+            closeIframeViewer();
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+
+            const filtered = currentCardsData.filter(item => {
+                const matchesCategory = selectedCategory === "Todas" || item.category === selectedCategory;
+                const matchesSearch = item.title.toLowerCase().includes(query) ||
+                                      item.texto.toLowerCase().includes(query) ||
+                                      (item.tags && item.tags.some(t => t.toLowerCase().includes(query)));
+                return matchesCategory && matchesSearch;
+            });
+
+            renderCards(filtered);
+        }
+
+        function openModal() {
+            document.getElementById('addCardModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('addCardModal').classList.add('hidden');
+            document.getElementById('cardForm').reset();
+        }
+
+        /**
+         * Guarda una nueva tarjeta creada desde el Modal en IndexedDB.
+         */
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const newCard = {
+                title: document.getElementById('modalTitle').value,
+                category: document.getElementById('modalCategory').value,
+                badge: document.getElementById('modalBadge').value || null,
+                href: document.getElementById('modalHref').value,
+                imagen: document.getElementById('modalImagen').value,
+                texto: document.getElementById('modalTexto').value,
+                autor: "Usuario BD",
+                fecha: new Date().getFullYear().toString(),
+                tags: document.getElementById('modalTags').value.split(',').map(t => t.trim()).filter(Boolean)
+            };
+
+            try {
+                const generatedId = await db.cards.add(newCard);
+                closeModal();
+                await fetchAndRenderAll();
+                showToast(`Nueva tarjeta guardada en IndexedDB (#${generatedId})`);
+            } catch (err) {
+                console.error("Error al insertar en Dexie:", err);
+                showToast("Error guardando en IndexedDB", "fa-circle-exclamation");
+            }
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        function toggleNavMobile() {
+            const nav = document.getElementById('leftNav');
+            nav.classList.toggle('hidden');
+        }
+
+        function toggleAsideMobile() {
+            const aside = document.getElementById('rightAside');
+            aside.classList.toggle('hidden');
+        }
+
+        // Inicialización de tema
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        // Evento principal de carga
+        window.onload = function() {
+            // Ocultar paneles en pantallas móviles pequeñas al inicio si no hay espacio
+            if (window.innerWidth < 768) {
+                document.getElementById('leftNav').classList.add('hidden');
+            }
+            if (window.innerWidth < 1024) {
+                document.getElementById('rightAside').classList.add('hidden');
+            }
+            initDatabase();
+        };
+    </script>
+</body>
+</html>
