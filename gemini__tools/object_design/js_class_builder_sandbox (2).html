@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS Class Builder & IndexedDB Sandbox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+    <header class="bg-indigo-600 text-white shadow-md p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <div>
+            <h1 class="text-xl font-bold flex items-center gap-2">🛠️ JS Class Builder & IndexedDB Sandbox</h1>
+            <p class="text-xs text-indigo-200">Define objetos visualmente, guárdalos en IndexedDB y pruébalos en tiempo real en un iframe.</p>
+        </div>
+        <button id="btnLoadExample" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs px-3 py-2 rounded-lg font-medium transition shadow border border-indigo-500">
+            📥 Cargar Ejemplo (HTMLIframeManager)
+        </button>
+    </header>
+
+    <main class="flex-grow p-4 grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto w-full">
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h2 class="text-lg font-bold text-slate-700">Editor de Clases</h2>
+                <button id="btnSaveClass" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-xl font-semibold shadow transition flex items-center gap-1.5">
+                    💾 Guardar en BD
+                </button>
+            </div>
+
+            <div class="space-y-4 overflow-y-auto max-h-[72vh] pr-2">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Nombre de la Clase</label>
+                    <input type="text" id="className" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="Ej: MiClaseInteractiva">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Parámetros del Constructor (separados por coma)</label>
+                    <input type="text" id="constructorParams" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="Ej: selector, options">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Cuerpo del Constructor (Lógica inicial)</label>
+                    <textarea id="constructorBody" rows="3" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs" placeholder="this.render();\nthis.setupEvents();"></textarea>
+                </div>
+
+                <!-- Properties Section -->
+                <div class="border-t pt-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Propiedades Iniciales</span>
+                        <button id="btnAddProp" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg font-medium">+ Añadir Propiedad</button>
+                    </div>
+                    <div id="propertiesContainer" class="space-y-2"></div>
+                </div>
+
+                <!-- Methods Section -->
+                <div class="border-t pt-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-600">Métodos de la Clase</span>
+                        <button id="btnAddMethod" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded-lg font-medium">+ Añadir Método</button>
+                    </div>
+                    <div id="methodsContainer" class="space-y-3"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="flex flex-col gap-6">
+            <!-- Database List -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                <h2 class="text-lg font-bold text-slate-700 mb-3">Clases Guardadas (IndexedDB)</h2>
+                <div id="classesList" class="flex flex-wrap gap-2 min-h-[50px] items-center text-sm text-slate-500">
+                    Cargando clases...
+                </div>
+            </div>
+
+            <!-- Instance Runner -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+                <h2 class="text-lg font-bold text-slate-700">Instanciar Clase en Iframe</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Clase seleccionada & Argumentos</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="selectedClassDisplay" readonly class="w-1/2 bg-slate-100 px-3 py-2 border rounded-xl text-sm font-medium text-slate-600" placeholder="Ninguna">
+                            <input type="text" id="instanceArgs" class="w-1/2 px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Args (ej: '#app')">
+                        </div>
+                    </div>
+                    <div class="flex items-end h-full pt-5">
+                        <button id="btnRunSandbox" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition">
+                            ▶ Instanciar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Iframe Sandbox Container -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-bold text-slate-700">Navegador / Sandbox (Iframe)</h2>
+                    <button id="btnClearIframe" class="text-xs text-rose-600 hover:text-rose-700 font-medium">Limpiar Iframe</button>
+                </div>
+                <div id="iframe-container" class="border-2 border-dashed border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex-grow min-h-[280px] flex flex-col">
+                    <iframe id="sandboxIframe" class="w-full h-full flex-grow border-none bg-white"></iframe>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-sm font-medium"></div>
+
+    <script>
+        // Initialize Dexie DB
+        const db = new Dexie('JSObjectBuilderDB');
+        db.version(1).stores({
+            classes: '++id, name'
+        });
+
+        let currentProperties = [];
+        let currentMethods = [];
+        let selectedClassId = null;
+
+        const seedExamples = [
+            {
+                name: 'HTMLIframeManager',
+                constructorParams: 'containerSelector',
+                properties: [
+                    { name: 'container', value: 'document.querySelector(containerSelector)' },
+                    { name: 'iframe', value: 'null' },
+                    { name: 'taskbar', value: 'null' }
+                ],
+                constructorBody: 'if (!this.container) return;\nthis.render();\nthis.setupEventListeners();',
+                methods: [
+                    {
+                        name: 'render',
+                        params: '',
+                        body: 'this.taskbar = document.createElement("div");\nthis.taskbar.style.cssText = "display: flex; gap: 5px; padding: 8px; background: #e2e8f0; border-radius: 8px 8px 0 0;";\n\nconst input = document.createElement("input");\ninput.type = "text";\ninput.value = "https://example.com";\ninput.style.cssText = "flex-grow: 1; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1;";\n\nconst btn = document.createElement("button");\nbtn.textContent = "Ir";\nbtn.onclick = () => this.iframe.src = input.value;\n\nthis.taskbar.appendChild(input);\nthis.taskbar.appendChild(btn);\n\nthis.iframe = document.createElement("iframe");\nthis.iframe.style.cssText = "width: 100%; height: 220px; border: none; background: white;";\nthis.iframe.src = input.value;\n\nthis.container.innerHTML = "";\nthis.container.appendChild(this.taskbar);\nthis.container.appendChild(this.iframe);'
+                    },
+                    {
+                        name: 'setupEventListeners',
+                        params: '',
+                        body: 'console.log("HTMLIframeManager ready.");'
+                    }
+                ]
+            },
+            {
+                name: 'HTMLVideoPlayer',
+                constructorParams: 'containerSelector, videoUrl',
+                properties: [
+                    { name: 'container', value: 'document.querySelector(containerSelector)' },
+                    { name: 'videoUrl', value: 'videoUrl || "https://www.w3schools.com/html/mov_bbb.mp4"' },
+                    { name: 'video', value: 'null' },
+                    { name: 'playBtn', value: 'null' }
+                ],
+                constructorBody: 'if (!this.container) return;\nthis.render();\nthis.setupEvents();',
+                methods: [
+                    {
+                        name: 'render',
+                        params: '',
+                        body: 'this.container.innerHTML = "";\nthis.video = document.createElement("video");\nthis.video.src = this.videoUrl;\nthis.video.style.cssText = "width: 100%; max-height: 200px; border-radius: 8px; background: #000;";\n\nconst controls = document.createElement("div");\ncontrols.style.cssText = "display: flex; gap: 10px; margin-top: 8px; justify-content: center;";\n\nthis.playBtn = document.createElement("button");\nthis.playBtn.textContent = "▶ Play / Pause";\nthis.playBtn.style.cssText = "padding: 6px 16px; cursor: pointer; border-radius: 6px; background: #4f46e5; color: white; font-weight: 600; font-size: 12px;";\n\ncontrols.appendChild(this.playBtn);\nthis.container.appendChild(this.video);\nthis.container.appendChild(controls);'
+                    },
+                    {
+                        name: 'setupEvents',
+                        params: '',
+                        body: 'this.playBtn.addEventListener("click", () => {\n    if (this.video.paused) this.video.play();\n    else this.video.pause();\n});'
+                    }
+                ]
+            },
+            {
+                name: 'HTMLDrawingBoard',
+                constructorParams: 'containerSelector',
+                properties: [
+                    { name: 'container', value: 'document.querySelector(containerSelector)' },
+                    { name: 'canvas', value: 'null' },
+                    { name: 'ctx', value: 'null' },
+                    { name: 'isDrawing', value: 'false' }
+                ],
+                constructorBody: 'if (!this.container) return;\nthis.render();\nthis.setupEvents();',
+                methods: [
+                    {
+                        name: 'render',
+                        params: '',
+                        body: 'this.container.innerHTML = "";\nthis.canvas = document.createElement("canvas");\nthis.canvas.width = 380;\nthis.canvas.height = 180;\nthis.canvas.style.cssText = "border: 2px dashed #94a3b8; border-radius: 8px; cursor: crosshair; background: #fff;";\n\nconst clearBtn = document.createElement("button");\nclearBtn.textContent = "🗑️ Limpiar Lienzo";\nclearBtn.style.cssText = "display: block; margin-top: 8px; padding: 6px 12px; background: #ef4444; color: white; border-radius: 6px; cursor: pointer; font-size: 11px;";\nclearBtn.onclick = () => this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);\n\nthis.container.appendChild(this.canvas);\nthis.container.appendChild(clearBtn);\n\nthis.ctx = this.canvas.getContext("2d");\nthis.ctx.lineWidth = 3;\nthis.ctx.lineCap = "round";\nthis.ctx.strokeStyle = "#4f46e5";'
+                    },
+                    {
+                        name: 'setupEvents',
+                        params: '',
+                        body: 'const start = (e) => {\n    this.isDrawing = true;\n    this.ctx.beginPath();\n    const r = this.canvas.getBoundingClientRect();\n    this.ctx.moveTo(e.clientX - r.left, e.clientY - r.top);\n};\nconst draw = (e) => {\n    if (!this.isDrawing) return;\n    const r = this.canvas.getBoundingClientRect();\n    this.ctx.lineTo(e.clientX - r.left, e.clientY - r.top);\n    this.ctx.stroke();\n};\nconst stop = () => this.isDrawing = false;\n\nthis.canvas.addEventListener("mousedown", start);\nthis.canvas.addEventListener("mousemove", draw);\nthis.canvas.addEventListener("mouseup", stop);\nthis.canvas.addEventListener("mouseleave", stop);'
+                    }
+                ]
+            },
+            {
+                name: 'HTMLCalculator',
+                constructorParams: 'containerSelector',
+                properties: [
+                    { name: 'container', value: 'document.querySelector(containerSelector)' },
+                    { name: 'display', value: 'null' }
+                ],
+                constructorBody: 'if (!this.container) return;\nthis.render();',
+                methods: [
+                    {
+                        name: 'render',
+                        params: '',
+                        body: 'this.container.innerHTML = "";\nconst wrapper = document.createElement("div");\nwrapper.style.cssText = "width: 200px; padding: 12px; background: #1e293b; border-radius: 10px; font-family: sans-serif;";\n\nthis.display = document.createElement("input");\nthis.display.type = "text";\nthis.display.disabled = true;\nthis.display.style.cssText = "width: 100%; box-sizing: border-box; padding: 8px; margin-bottom: 8px; text-align: right; font-size: 1.1rem; border-radius: 4px; border: none; background: #0f172a; color: #10b981; font-family: monospace;";\n\nconst grid = document.createElement("div");\ngrid.style.cssText = "display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;";\n\n["7","8","9","/","4","5","6","*","1","2","3","-","C","0","=","+"].forEach(btn => {\n    const b = document.createElement("button");\n    b.textContent = btn;\n    b.style.cssText = "padding: 8px 0; font-weight: bold; border-radius: 4px; border: none; background: #475569; color: white; cursor: pointer; font-size: 12px;";\n    b.onclick = () => {\n        if(btn === "C") this.display.value = "";\n        else if(btn === "=") { try { this.display.value = eval(this.display.value); } catch(e) { this.display.value = "Error"; } }\n        else this.display.value += btn;\n    };\n    grid.appendChild(b);\n});\n\nwrapper.appendChild(this.display);\nwrapper.appendChild(grid);\nthis.container.appendChild(wrapper);'
+                    }
+                ]
+            }
+        ];
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = `fixed bottom-5 right-5 px-4 py-3 rounded-xl shadow-xl transform transition-all duration-300 z-50 text-sm font-medium ${type === 'error' ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white'}`;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        function renderProperties() {
+            const container = document.getElementById('propertiesContainer');
+            container.innerHTML = '';
+            currentProperties.forEach((prop, i) => {
+                const row = document.createElement('div');
+                row.className = 'flex gap-2 items-center';
+                row.innerHTML = `
+                    <input type="text" placeholder="Nombre" value="${prop.name}" class="w-1/3 px-2 py-1 border rounded-lg text-xs outline-none" onchange="currentProperties[${i}].name = this.value">
+                    <input type="text" placeholder="Valor" value="${prop.value}" class="w-2/3 px-2 py-1 border rounded-lg text-xs outline-none font-mono" onchange="currentProperties[${i}].value = this.value">
+                    <button onclick="removeProperty(${i})" class="text-rose-500 font-bold text-sm">×</button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function renderMethods() {
+            const container = document.getElementById('methodsContainer');
+            container.innerHTML = '';
+            currentMethods.forEach((method, i) => {
+                const box = document.createElement('div');
+                box.className = 'border border-slate-200 rounded-xl p-3 bg-slate-50 flex flex-col gap-2';
+                box.innerHTML = `
+                    <div class="flex gap-2 items-center">
+                        <input type="text" placeholder="Método" value="${method.name}" class="w-1/2 px-2 py-1 border rounded-lg text-xs font-semibold bg-white" onchange="currentMethods[${i}].name = this.value">
+                        <input type="text" placeholder="Params (a, b)" value="${method.params || ''}" class="w-1/2 px-2 py-1 border rounded-lg text-xs bg-white font-mono" onchange="currentMethods[${i}].params = this.value">
+                        <button onclick="removeMethod(${i})" class="text-rose-500 font-bold text-sm">×</button>
+                    </div>
+                    <textarea placeholder="Cuerpo..." rows="2" class="w-full px-2 py-1 border rounded-lg text-xs font-mono bg-white" onchange="currentMethods[${i}].body = this.value">${method.body}</textarea>
+                `;
+                container.appendChild(box);
+            });
+        }
+
+        window.removeProperty = (i) => { currentProperties.splice(i, 1); renderProperties(); };
+        window.removeMethod = (i) => { currentMethods.splice(i, 1); renderMethods(); };
+
+        document.getElementById('btnAddProp').onclick = () => { currentProperties.push({ name: '', value: 'null' }); renderProperties(); };
+        document.getElementById('btnAddMethod').onclick = () => { currentMethods.push({ name: '', params: '', body: '' }); renderMethods(); };
+
+        function loadClassIntoForm(cls) {
+            document.getElementById('className').value = cls.name;
+            document.getElementById('constructorParams').value = cls.constructorParams || '';
+            document.getElementById('constructorBody').value = cls.constructorBody || '';
+            currentProperties = JSON.parse(JSON.stringify(cls.properties || []));
+            currentMethods = JSON.parse(JSON.stringify(cls.methods || []));
+            renderProperties();
+            renderMethods();
+            selectedClassId = cls.id;
+            document.getElementById('selectedClassDisplay').value = cls.name;
+            document.getElementById('instanceArgs').value = '#iframe-container';
+        }
+
+        async function loadClassesList() {
+            const list = document.getElementById('classesList');
+            try {
+                const classes = await db.classes.toArray();
+                if (classes.length === 0) {
+                    list.innerHTML = '<span class="text-slate-400 italic">No hay clases. Pulsa "Cargar Ejemplo" arriba.</span>';
+                    return;
+                }
+                list.innerHTML = '';
+                classes.forEach(cls => {
+                    const btn = document.createElement('button');
+                    btn.className = 'bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold transition text-slate-700 flex items-center gap-1.5';
+                    btn.innerHTML = `📦 ${cls.name}`;
+                    btn.onclick = () => loadClassIntoForm(cls);
+                    list.appendChild(btn);
+                });
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = '<span class="text-rose-500 text-xs">Error cargando IndexedDB.</span>';
+            }
+        }
+
+        async function saveClassToDB() {
+            const name = document.getElementById('className').value.trim();
+            if (!name) { showToast('El nombre de la clase es obligatorio.', 'error'); return; }
+            const classData = {
+                name,
+                constructorParams: document.getElementById('constructorParams').value.trim(),
+                constructorBody: document.getElementById('constructorBody').value,
+                properties: currentProperties,
+                methods: currentMethods
+            };
+            try {
+                if (selectedClassId) {
+                    classData.id = selectedClassId;
+                    await db.classes.put(classData);
+                    showToast(`Clase "${name}" actualizada.`);
+                } else {
+                    selectedClassId = await db.classes.add(classData);
+                    showToast(`Clase "${name}" guardada.`);
+                }
+                loadClassesList();
+                document.getElementById('selectedClassDisplay').value = name;
+            } catch (err) {
+                console.error(err);
+                showToast('Error al guardar.', 'error');
+            }
+        }
+
+        async function seedDatabase() {
+            try {
+                const count = await db.classes.count();
+                if (count === 0) {
+                    for (const cls of seedExamples) {
+                        await db.classes.add(cls);
+                    }
+                    showToast('Base de datos inicializada con 4 ejemplos.');
+                }
+            } catch (err) {
+                console.error("Error sembrando la BD:", err);
+            }
+        }
+
+        function runSandbox() {
+            if (!selectedClassId) { showToast('Selecciona o guarda una clase primero.', 'error'); return; }
+            db.classes.get(selectedClassId).then(cls => {
+                if (!cls) { showToast('Clase no encontrada.', 'error'); return; }
+
+                let classCode = `class ${cls.name} {\n`;
+                classCode += `    constructor(${cls.constructorParams || ''}) {\n`;
+                if (cls.properties) cls.properties.forEach(p => { classCode += `        this.${p.name} = ${p.value || 'null'};\n`; });
+                classCode += `        ${cls.constructorBody || ''}\n    }\n\n`;
+                if (cls.methods) cls.methods.forEach(m => {
+                    classCode += `    ${m.name}(${m.params || ''}) {\n        ${m.body || ''}\n    }\n\n`;
+                });
+                classCode += `}\n`;
+
+                const args = document.getElementById('instanceArgs').value;
+                const iframeHTML = `<!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <script src="https://cdn.tailwindcss.com"><${'/'}script>
+                </head>
+                <body class="p-3 bg-white">
+                    <div id="iframe-container"></div>
+                    <script>
+                        try {
+                            ${classCode}
+                            const instance = new ${cls.name}(${args});
+                            console.log('Instancia creada:', instance);
+                        } catch (err) {
+                            document.body.innerHTML += '<div style="color:red; padding:8px; border:1px solid red; border-radius:6px; font-size:12px;"><b>Error:</b> ' + err.message + '</div>';
+                        }
+                    <${'/'}script>
+                </body>
+                </html>`;
+
+                document.getElementById('sandboxIframe').srcdoc = iframeHTML;
+                showToast('¡Instanciado en el Iframe con éxito!');
+            });
+        }
+
+        document.getElementById('btnSaveClass').onclick = saveClassToDB;
+        document.getElementById('btnRunSandbox').onclick = runSandbox;
+        document.getElementById('btnClearIframe').onclick = () => {
+            document.getElementById('sandboxIframe').srcdoc = '<div style="font-family:sans-serif; color:#64748b; text-align:center; padding:30px; font-size:13px;">Iframe reiniciado.</div>';
+            showToast('Iframe limpiado', 'info');
+        };
+
+        document.getElementById('btnLoadExample').onclick = () => {
+            loadClassIntoForm(seedExamples[0]);
+            showToast('HTMLIframeManager cargado.');
+        };
+
+        window.onload = async () => {
+            renderProperties();
+            renderMethods();
+            await seedDatabase();
+            loadClassesList();
+        };
+    </script>
+</body>
+</html>
